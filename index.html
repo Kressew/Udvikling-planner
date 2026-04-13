@@ -541,17 +541,25 @@ didDrag=false;
 
 function getMemberRowIdx(clientY){
   const tlRows = document.querySelectorAll('.tl-row');
+  if (!tlRows.length) return 0;
+
   let index = 0;
 
-  tlRows.forEach((row, i) => {
-    const rect = row.getBoundingClientRect();
+  for (let i = 0; i < tlRows.length; i++) {
+    const rect = tlRows[i].getBoundingClientRect();
     if (clientY >= rect.top && clientY < rect.bottom) {
       index = i;
+      break;
     }
-  });
+  }
+
+  // Clamp to valid range
+  if (index < 0) index = 0;
+  if (index > tlRows.length - 1) index = tlRows.length - 1;
 
   return index;
 }
+
 
 
 function handleDragMove(clientX,clientY){
