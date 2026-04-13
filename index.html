@@ -75,7 +75,77 @@ h1 em{font-style:normal;color:var(--c3);}
 .mb-p{background:var(--c3);color:#0C0E14;}.mb-p:hover{filter:brightness(1.08);}
 .mb-c{background:transparent;border:1px solid var(--bd);color:var(--mu);}.mb-c:hover{border-color:var(--mu);color:var(--tx);}
 .mb-d{background:transparent;border:1px solid #FF6B6B;color:#FF6B6B;margin-right:auto;}.mb-d:hover{background:rgba(255,107,107,.1);}
+
+.help-banner{
+  background:var(--sf2);
+  border:1px solid var(--bd);
+  border-radius:9px;
+  padding:10px 12px;
+  margin-bottom:10px;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  font-size:11px;
+}
+.help-left{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.help-label{
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:1px;
+  color:var(--mu);
+}
+.help-title{
+  font-family:'Archivo Black',sans-serif;
+  font-size:13px;
+}
+.help-steps{
+  margin-left:14px;
+  margin-top:4px;
+  color:var(--mu);
+}
+.help-steps li{
+  margin-bottom:2px;
+}
+.help-close{
+  background:transparent;
+  border:1px solid var(--bd);
+  color:var(--mu);
+  padding:4px 8px;
+  border-radius:5px;
+  cursor:pointer;
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:.7px;
+  flex-shrink:0;
+}
+.help-close:hover{
+  border-color:var(--mu);
+  color:var(--tx);
+}
+
 </style>
+<div class="help-banner" id="helpBanner">
+  <div class="help-left">
+    <div class="help-label">Guide</div>
+    <div class="help-title">Sådan bruger du føtex Udvikling Planner</div>
+    <ul class="help-steps">
+      <li><strong>Tilføj opgave:</strong> Klik på <em>+ Add Task</em> eller klik et sted i en persons række i tidslinjen.</li>
+      <li><strong>Redigér opgave:</strong> Klik på en opgavebjælke for at ændre navn, datoer eller person.</li>
+      <li><strong>Flyt opgave:</strong> Træk en opgavebjælke hen ad tidslinjen eller ned til en anden person.</li>
+      <li><strong>Ændr længde:</strong> Træk i højre kant af en opgavebjælke for at gøre den kortere eller længere.</li>
+      <li><strong>Tilføj person:</strong> Klik på <em>+ Add member</em> nederst for at oprette en ny person.</li>
+      <li><strong>Se i dag:</strong> Klik på <em>↗ Today</em> for at scrolle til dagens dato.</li>
+    </ul>
+  </div>
+  <button class="help-close" id="helpCloseBtn" title="Skjul guide">Skjul</button>
+</div>
 <div class="app-hdr">
 <div class="logo">
 <div class="logo-sq"><svg viewBox="0 0 24 24" fill="none" stroke="#0C0E14" stroke-width="2.5"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="4" x2="8" y2="9"/><line x1="16" y1="4" x2="16" y2="9"/></svg></div>
@@ -602,5 +672,23 @@ state.members = state.members.map((m,i)=>({
   render();
   setTimeout(scrollToToday,120);
 })();
+// ── Help banner hide/show ────────────────────────────────────────────────
+const HELP_KEY = 'planner_help_hidden';
+
+function initHelpBanner(){
+  const banner = document.getElementById('helpBanner');
+  const btn = document.getElementById('helpCloseBtn');
+  if (!banner || !btn) return;
+
+  const hidden = localStorage.getItem(HELP_KEY) === '1';
+  if (hidden) banner.style.display = 'none';
+
+  btn.addEventListener('click', () => {
+    banner.style.display = 'none';
+    localStorage.setItem(HELP_KEY, '1');
+  });
+}
+
+initHelpBanner();
 
 </script>
