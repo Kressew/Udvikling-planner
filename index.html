@@ -189,6 +189,8 @@ h1 em{font-style:normal;color:var(--c3);}
 <script>
 const LABEL_W=148, BASE_ROW_H=70, YH=24, QH=22, MH=18, HDR_H=YH+QH+MH;
 
+let ROW_H = BASE_ROW_H; // will be overridden per member row
+
 const COLORS = [
   getComputedStyle(document.documentElement).getPropertyValue('--m1').trim(),
   getComputedStyle(document.documentElement).getPropertyValue('--m2').trim(),
@@ -540,27 +542,12 @@ didDrag=false;
 }
 
 function getMemberRowIdx(clientY){
-  const tlRows = document.querySelectorAll('.tl-row');
-  if (!tlRows.length) return 0;
-
-  let index = 0;
-
-  for (let i = 0; i < tlRows.length; i++) {
-    const rect = tlRows[i].getBoundingClientRect();
-    if (clientY >= rect.top && clientY < rect.bottom) {
-      index = i;
-      break;
-    }
-  }
-
-  // Clamp to valid range
-  if (index < 0) index = 0;
-  if (index > tlRows.length - 1) index = tlRows.length - 1;
-
-  return index;
+const gi=document.getElementById('ganttInner');
+if(!gi) return 0;
+const rect=gi.getBoundingClientRect();
+const relY=clientY-rect.top-HDR_H;
+return Math.max(0,Math.min(state.members.length-1,Math.floor(relY/ROW_H)));
 }
-
-
 
 function handleDragMove(clientX,clientY){
 if(!dragging) return;
