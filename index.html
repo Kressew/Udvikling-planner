@@ -1,29 +1,35 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#0C0E14;
-  --sf:#13161F;
-  --sf2:#1A1E2A;
-  --bd:#232737;
-  --tx:#DDE1EE;
-  --mu:#5A6180;
-  --c3:#FFD166;
+  --bg:#F3F4F8;
+  --sf:#FFFFFF;
+  --sf2:#F0F2FA;
+  --bd:#D1D5E5;
+  --tx:#111827;
+  --mu:#6B7280;
+  --c3:#F59E0B;
 
   /* Member colors – change these as you like */
-  --m1:#FF6B6B;
-  --m2:#4ECDC4;
-  --m3:#FFD166;
-  --m4:#6BCB77;
-  --m5:#5A8DEE;
-  --m6:#C77DFF;
-  --m7:#FF9F1C;
+  --m1:#F97373;
+  --m2:#22C7B8;
+  --m3:#FACC6B;
+  --m4:#4ADE80;
+  --m5:#60A5FA;
+  --m6:#C084FC;
+  --m7:#FB923C;
   --m8:#2EC4B6;
-  --m9:#E71D36;
-  --m10:#8D99AE;
-
+  --m9:#F43F5E;
+  --m10:#9CA3AF;
 }
+
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--tx);font-family:'Archivo',sans-serif;padding:14px;user-select:none;}
+body{
+  background:var(--bg);
+  color:var(--tx);
+  font-family:'Archivo',sans-serif;
+  padding:14px;
+  user-select:none;
+}
 .app-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px;flex-wrap:wrap;}
 .logo{display:flex;align-items:center;gap:8px;}
 .logo-sq{width:28px;height:28px;background:var(--c3);border-radius:5px;display:grid;place-items:center;flex-shrink:0;}
@@ -51,7 +57,19 @@ h1 em{font-style:normal;color:var(--c3);}
 .hdr-band{position:absolute;overflow:hidden;display:flex;align-items:center;padding:0 6px;}
 .tl-row{position:relative;flex-shrink:0;border-bottom:1px solid var(--bd);overflow:hidden;transition:background .15s;}
 .tl-row.drop-target{background:rgba(255,255,255,.04);}
-.task-bar{position:absolute;border-radius:4px;display:flex;align-items:center;padding:0 7px;z-index:4;overflow:hidden;white-space:nowrap;cursor:grab;}
+.task-bar{
+  position:absolute;
+  border-radius:4px;
+  display:flex;
+  align-items:center;
+  padding:0 7px;
+  z-index:4;
+  overflow:hidden;
+  white-space:nowrap;
+  cursor:grab;
+  box-shadow:0 1px 3px rgba(15,23,42,.12);
+  border:1px solid rgba(15,23,42,.08);
+}
 .task-bar .task-name{font-size:10px;font-weight:600;color:rgba(0,0,0,.72);overflow:hidden;text-overflow:ellipsis;pointer-events:none;flex:1;min-width:0;}
 .task-bar .resize-h{position:absolute;right:0;top:0;width:6px;height:100%;cursor:ew-resize;background:rgba(0,0,0,.2);border-radius:0 4px 4px 0;}
 .task-bar:hover{filter:brightness(1.1);}
@@ -169,7 +187,8 @@ h1 em{font-style:normal;color:var(--c3);}
 </div>
 <div id="mc"></div>
 <script>
-const LABEL_W=148, ROW_H=60, YH=24, QH=22, MH=18, HDR_H=YH+QH+MH;
+const LABEL_W=148, ROW_H=70, YH=24, QH=22, MH=18, HDR_H=YH+QH+MH;
+
 const COLORS = [
   getComputedStyle(document.documentElement).getPropertyValue('--m1').trim(),
   getComputedStyle(document.documentElement).getPropertyValue('--m2').trim(),
@@ -374,40 +393,87 @@ const x=e.clientX-rect.left;
 const d=Math.floor(x/DAY_W);
 openAddModal(mem.id,addDays(state.viewStart,d));
 });
-// Task bars
-state.tasks.filter(t=>t.memberId===mem.id).forEach(task=>{
-const lx=dayOff(task.start)*DAY_W;
-const ww=task.duration*DAY_W-2;
-if(lx+ww<0||lx>TW) return;
-const bar=document.createElement('div');bar.className='task-bar';
-bar.style.cssText=`top:10px;left:${lx}px;width:${Math.max(ww,3)}px;height:${ROW_H-20}px;background:${color};`;
-bar.dataset.tid=task.id;
-if(ww>30){
-const ns=document.createElement('span');ns.className='task-name';ns.textContent=task.name;bar.appendChild(ns);
-}
-const rh=document.createElement('div');rh.className='resize-h';bar.appendChild(rh);
-// Move drag
-bar.addEventListener('mousedown',e=>{
-if(e.target===rh)return;
-e.stopPropagation();e.preventDefault();
-startDrag(e.clientX,e.clientY,task,'move',bar,color);
-});
-rh.addEventListener('mousedown',e=>{
-e.stopPropagation();e.preventDefault();
-startDrag(e.clientX,e.clientY,task,'resize',bar,color);
-});
-bar.addEventListener('touchstart',e=>{
-if(e.target===rh)return;
-e.preventDefault();
-const t=e.touches[0];
-startDrag(t.clientX,t.clientY,task,'move',bar,color);
-},{passive:false});
-rh.addEventListener('touchstart',e=>{
-e.stopPropagation();e.preventDefault();
-const t=e.touches[0];
-startDrag(t.clientX,t.clientY,task,'resize',bar,color);
-},{passive:false});
-bar.addEventListener('click',e=>{e.stopPropagation();if(!didDrag)openEditModal(task);});
+// Task bars – two lanes per member row (top/bottom) to avoid overlap
+const memberTasks = state.tasks
+  .filter(t => t.memberId === mem.id)
+  .sort((a,b) => a.start.localeCompare(b.start));
+
+const lanes = []; // array of arrays, each lane holds tasks placed there
+
+memberTasks.forEach(task => {
+  const lx = dayOff(task.start) * DAY_W;
+  const ww = task.duration * DAY_W - 2;
+  if (lx + ww < 0 || lx > TW) return;
+
+  // find first lane where this task does not overlap
+  let laneIndex = 0;
+  while (true) {
+    if (!lanes[laneIndex]) {
+      lanes[laneIndex] = [];
+      break;
+    }
+    const lastInLane = lanes[laneIndex][lanes[laneIndex].length - 1];
+    const lastEnd = dayOff(lastInLane.start) + lastInLane.duration;
+    const thisStart = dayOff(task.start);
+    if (thisStart >= lastEnd) {
+      // no overlap with last in this lane
+      break;
+    }
+    laneIndex++;
+    if (laneIndex > 1) { // max two lanes (0 and 1), force into last if more
+      laneIndex = 1;
+      break;
+    }
+  }
+  lanes[laneIndex] = lanes[laneIndex] || [];
+  lanes[laneIndex].push(task);
+
+  // visual top position within row
+  const laneHeight = (ROW_H - 24) / 2; // padding top/bottom = 12px
+  const topOffset = 12 + laneIndex * (laneHeight + 4);
+
+  const bar = document.createElement('div');
+  bar.className = 'task-bar';
+  bar.style.cssText = `
+    top:${topOffset}px;
+    left:${lx}px;
+    width:${Math.max(ww,3)}px;
+    height:${laneHeight}px;
+    background:${color};
+  `;
+  bar.dataset.tid = task.id;
+
+  if (ww > 30){
+    const ns=document.createElement('span');
+    ns.className='task-name';
+    ns.textContent=task.name;
+    bar.appendChild(ns);
+  }
+
+  const rh=document.createElement('div');rh.className='resize-h';bar.appendChild(rh);
+
+  // Move drag
+  bar.addEventListener('mousedown',e=>{
+    if(e.target===rh)return;
+    e.stopPropagation();e.preventDefault();
+    startDrag(e.clientX,e.clientY,task,'move',bar,color);
+  });
+  rh.addEventListener('mousedown',e=>{
+    e.stopPropagation();e.preventDefault();
+    startDrag(e.clientX,e.clientY,task,'resize',bar,color);
+  });
+  bar.addEventListener('touchstart',e=>{
+    if(e.target===rh)return;
+    e.preventDefault();
+    const t=e.touches[0];
+    startDrag(t.clientX,t.clientY,task,'move',bar,color);
+  },{passive:false});
+  rh.addEventListener('touchstart',e=>{
+    e.stopPropagation();e.preventDefault();
+    const t=e.touches[0];
+    startDrag(t.clientX,t.clientY,task,'resize',bar,color);
+  },{passive:false});
+  bar.addEventListener('click',e=>{e.stopPropagation();if(!didDrag)openEditModal(task);});
   // Right‑click to delete
   bar.addEventListener('contextmenu',e=>{
     e.preventDefault();
@@ -421,9 +487,6 @@ bar.addEventListener('click',e=>{e.stopPropagation();if(!didDrag)openEditModal(t
 
   tl.appendChild(bar);
 });
-row.appendChild(tl);gi.appendChild(row);
-});
-}
 
 // ── Drag ──────────────────────────────────────────────────────────────────
 function startDrag(clientX,clientY,task,type,bar,color){
