@@ -187,9 +187,7 @@ h1 em{font-style:normal;color:var(--c3);}
 </div>
 <div id="mc"></div>
 <script>
-const LABEL_W=148, BASE_ROW_H=70, YH=24, QH=22, MH=18, HDR_H=YH+QH+MH;
-
-let ROW_H = BASE_ROW_H; // will be overridden per member row
+const LABEL_W=148, ROW_H=70, YH=24, QH=22, MH=18, HDR_H=YH+QH+MH;
 
 const COLORS = [
   getComputedStyle(document.documentElement).getPropertyValue('--m1').trim(),
@@ -241,14 +239,13 @@ function dayOff(dk){return diffDays(state.viewStart,dk);}
 
 // ── Dimensions ───────────────────────────────────────────────────────────
 function computeDims(){
-  const scroll=document.getElementById('ganttScroll');
-  const availW=Math.max((scroll?scroll.clientWidth:window.innerWidth-30)-LABEL_W-4, 300);
-  DAY_W=availW/(NUM_YEARS_VIS*365);
-  WEEK_W=DAY_W*7;
-  document.documentElement.style.setProperty('--lw',LABEL_W+'px');
-  document.documentElement.style.setProperty('--rh',BASE_ROW_H+'px'); // base
+const scroll=document.getElementById('ganttScroll');
+const availW=Math.max((scroll?scroll.clientWidth:window.innerWidth-30)-LABEL_W-4, 300);
+DAY_W=availW/(NUM_YEARS_VIS*365);
+WEEK_W=DAY_W*7;
+document.documentElement.style.setProperty('--lw',LABEL_W+'px');
+document.documentElement.style.setProperty('--rh',ROW_H+'px');
 }
-
 
 // ── Storage (localStorage) ────────────────────────────────────────────────
 const STORAGE_KEY='gantt_v4';
@@ -346,180 +343,154 @@ hRow.appendChild(htl);gi.appendChild(hRow);
 
 // ── Member rows ─────────────────────────────────────────────────────────
 state.members.forEach((mem,mi)=>{
-  const color=mem.color;
-  const row=document.createElement('div');row.className='g-row';
+const color=mem.color;
+const row=document.createElement('div');row.className='g-row';
+// Label
+const lbl=document.createElement('div');lbl.className='g-member-label';
+const dot=document.createElement('div');dot.className='m-dot';dot.style.background=color;
+const inp=document.createElement('input');inp.className='m-inp';inp.value=mem.name;
 
-  // Label
-  const lbl=document.createElement('div');lbl.className='g-member-label';
-  const dot=document.createElement('div');dot.className='m-dot';dot.style.background=color;
-  const inp=document.createElement('input');inp.className='m-inp';inp.value=mem.name;
+inp.addEventListener('change',()=>{
+  mem.name=inp.value;
+  save();
+  renderLegend();
+});
+inp.addEventListener('mousedown',e=>e.stopPropagation());
 
-  inp.addEventListener('change',()=>{
-    mem.name=inp.value;
-    save();
-    renderLegend();
+// Right‑click member label to delete
+lbl.addEventListener('contextmenu',e=>{
+  e.preventDefault();
+  e.stopPropagation();
+  deleteMember(mem);
+});
+
+lbl.appendChild(dot);
+lbl.appendChild(inp);
+row.appendChild(lbl);
+
+// Timeline
+const tl=document.createElement('div');tl.className='tl-row';
+tl.style.cssText=`width:${TW}px;height:${ROW_H}px;flex-shrink:0;`;
+tl.dataset.mid=mem.id;
+tl.dataset.midx=mi;
+// Month stripes
+months.forEach((b,idx)=>{
+const s=document.createElement('div');
+s.style.cssText=`position:absolute;left:${b.x}px;top:0;width:${b.w}px;height:100%;background:${idx%2?'rgba(255,255,255,.015)':'transparent'};border-right:1px solid var(--bd);pointer-events:none;`;
+tl.appendChild(s);
+});
+// Today line
+if(tp>=0&&tp<=TW){
+const tline=document.createElement('div');tline.className='today-line';
+tline.style.cssText=`left:${tp}px;background:var(--c3);opacity:.4;`;
+tl.appendChild(tline);
+}
+// Click-to-add
+tl.addEventListener('click',e=>{
+if(didDrag){didDrag=false;return;}
+const rect=tl.getBoundingClientRect();
+const x=e.clientX-rect.left;
+const d=Math.floor(x/DAY_W);
+openAddModal(mem.id,addDays(state.viewStart,d));
+});
+// Task bars – two lanes per member row (top/bottom) to avoid overlap
+const memberTasks = state.tasks
+  .filter(t => t.memberId === mem.id)
+  .sort((a,b) => a.start.localeCompare(b.start));
+
+const lanes = []; // array of arrays, each lane holds tasks placed there
+
+memberTasks.forEach(task => {
+  const lx = dayOff(task.start) * DAY_W;
+  const ww = task.duration * DAY_W - 2;
+  if (lx + ww < 0 || lx > TW) return;
+
+  // find first lane where this task does not overlap
+  let laneIndex = 0;
+  while (true) {
+    if (!lanes[laneIndex]) {
+      lanes[laneIndex] = [];
+      break;
+    }
+    const lastInLane = lanes[laneIndex][lanes[laneIndex].length - 1];
+    const lastEnd = dayOff(lastInLane.start) + lastInLane.duration;
+    const thisStart = dayOff(task.start);
+    if (thisStart >= lastEnd) {
+      // no overlap with last in this lane
+      break;
+    }
+    laneIndex++;
+    if (laneIndex > 1) { // max two lanes (0 and 1), force into last if more
+      laneIndex = 1;
+      break;
+    }
+  }
+  lanes[laneIndex] = lanes[laneIndex] || [];
+  lanes[laneIndex].push(task);
+
+  // visual top position within row
+  const laneHeight = (ROW_H - 24) / 2; // padding top/bottom = 12px
+  const topOffset = 12 + laneIndex * (laneHeight + 4);
+
+  const bar = document.createElement('div');
+  bar.className = 'task-bar';
+  bar.style.cssText = `
+    top:${topOffset}px;
+    left:${lx}px;
+    width:${Math.max(ww,3)}px;
+    height:${laneHeight}px;
+    background:${color};
+  `;
+  bar.dataset.tid = task.id;
+
+  if (ww > 30){
+    const ns=document.createElement('span');
+    ns.className='task-name';
+    ns.textContent=task.name;
+    bar.appendChild(ns);
+  }
+
+  const rh=document.createElement('div');rh.className='resize-h';bar.appendChild(rh);
+
+  // Move drag
+  bar.addEventListener('mousedown',e=>{
+    if(e.target===rh)return;
+    e.stopPropagation();e.preventDefault();
+    startDrag(e.clientX,e.clientY,task,'move',bar,color);
   });
-  inp.addEventListener('mousedown',e=>e.stopPropagation());
-
-  // Right‑click member label to delete
-  lbl.addEventListener('contextmenu',e=>{
+  rh.addEventListener('mousedown',e=>{
+    e.stopPropagation();e.preventDefault();
+    startDrag(e.clientX,e.clientY,task,'resize',bar,color);
+  });
+  bar.addEventListener('touchstart',e=>{
+    if(e.target===rh)return;
+    e.preventDefault();
+    const t=e.touches[0];
+    startDrag(t.clientX,t.clientY,task,'move',bar,color);
+  },{passive:false});
+  rh.addEventListener('touchstart',e=>{
+    e.stopPropagation();e.preventDefault();
+    const t=e.touches[0];
+    startDrag(t.clientX,t.clientY,task,'resize',bar,color);
+  },{passive:false});
+  bar.addEventListener('click',e=>{e.stopPropagation();if(!didDrag)openEditModal(task);});
+  // Right‑click to delete
+  bar.addEventListener('contextmenu',e=>{
     e.preventDefault();
     e.stopPropagation();
-    deleteMember(mem);
+    const ok=confirm(`Delete task "${task.name}"?`);
+    if(!ok) return;
+    state.tasks=state.tasks.filter(t=>t.id!==task.id);
+    save();
+    renderGantt();
   });
 
-  lbl.appendChild(dot);
-  lbl.appendChild(inp);
-  row.appendChild(lbl);
-
-  // --- Tasks for this member, sorted ---
-  const memberTasks = state.tasks
-    .filter(t => t.memberId === mem.id)
-    .sort((a,b) => a.start.localeCompare(b.start));
-
-  // --- Lane packing (overlap detection) ---
-  const lanes = []; // lanes[l] = array of tasks in that lane
-  memberTasks.forEach(task => {
-    const taskStart = dayOff(task.start);
-    const taskEnd = taskStart + task.duration; // exclusive
-
-    let laneIndex = 0;
-    while (true) {
-      if (!lanes[laneIndex] || lanes[laneIndex].length === 0) {
-        lanes[laneIndex] = [task];
-        break;
-      }
-      const lastInLane = lanes[laneIndex][lanes[laneIndex].length - 1];
-      const lastStart = dayOff(lastInLane.start);
-      const lastEnd = lastStart + lastInLane.duration;
-      if (taskStart >= lastEnd) {
-        lanes[laneIndex].push(task);
-        break;
-      }
-      laneIndex++;
-    }
-  });
-
-  const laneCount = Math.max(1, lanes.length);
-
-  // --- Decide row height and lane height based on laneCount ---
-  let rowHeight = BASE_ROW_H;
-  let laneHeight;
-
-  if (laneCount === 1) {
-    laneHeight = BASE_ROW_H - 20;       // big bar
-  } else if (laneCount === 2) {
-    rowHeight = BASE_ROW_H;
-    laneHeight = (rowHeight - 24) / 2;  // two medium bars
-  } else if (laneCount === 3) {
-    rowHeight = BASE_ROW_H;
-    laneHeight = (rowHeight - 28) / 3;  // three smaller bars
-  } else { // 4 or more lanes -> increase row height
-    rowHeight = BASE_ROW_H + (laneCount - 3) * 18; // grow with lanes
-    laneHeight = (rowHeight - 28) / laneCount;
-  }
-
-  // Timeline container with adaptive height
-  const tl=document.createElement('div');tl.className='tl-row';
-  tl.style.cssText=`width:${TW}px;height:${rowHeight}px;flex-shrink:0;`;
-  tl.dataset.mid=mem.id;
-  tl.dataset.midx=mi;
-
-  // Month stripes
-  months.forEach((b,idx)=>{
-    const s=document.createElement('div');
-    s.style.cssText=`position:absolute;left:${b.x}px;top:0;width:${b.w}px;height:100%;background:${idx%2?'rgba(255,255,255,.015)':'transparent'};border-right:1px solid var(--bd);pointer-events:none;`;
-    tl.appendChild(s);
-  });
-
-  // Today line
-  if(tp>=0&&tp<=TW){
-    const tline=document.createElement('div');tline.className='today-line';
-    tline.style.cssText=`left:${tp}px;background:var(--c3);opacity:.4;`;
-    tl.appendChild(tline);
-  }
-
-  // Click-to-add
-  tl.addEventListener('click',e=>{
-    if(didDrag){didDrag=false;return;}
-    const rect=tl.getBoundingClientRect();
-    const x=e.clientX-rect.left;
-    const d=Math.floor(x/DAY_W);
-    openAddModal(mem.id,addDays(state.viewStart,d));
-  });
-
-  // --- Render tasks per lane ---
-  const verticalPadding = 10;
-  const laneGap = 4;
-
-  lanes.forEach((laneTasks, laneIndex) => {
-    laneTasks.forEach(task => {
-      const lx = dayOff(task.start) * DAY_W;
-      const ww = task.duration * DAY_W - 2;
-      if (lx + ww < 0 || lx > TW) return;
-
-      const topOffset = verticalPadding + laneIndex * (laneHeight + laneGap);
-
-      const bar = document.createElement('div');
-      bar.className = 'task-bar';
-      bar.style.cssText = `
-        top:${topOffset}px;
-        left:${lx}px;
-        width:${Math.max(ww,3)}px;
-        height:${laneHeight}px;
-        background:${color};
-      `;
-      bar.dataset.tid = task.id;
-
-      if (ww > 30){
-        const ns=document.createElement('span');
-        ns.className='task-name';
-        ns.textContent=task.name;
-        bar.appendChild(ns);
-      }
-
-      const rh=document.createElement('div');rh.className='resize-h';bar.appendChild(rh);
-
-      // Move drag
-      bar.addEventListener('mousedown',e=>{
-        if(e.target===rh)return;
-        e.stopPropagation();e.preventDefault();
-        startDrag(e.clientX,e.clientY,task,'move',bar,color);
-      });
-      rh.addEventListener('mousedown',e=>{
-        e.stopPropagation();e.preventDefault();
-        startDrag(e.clientX,e.clientY,task,'resize',bar,color);
-      });
-      bar.addEventListener('touchstart',e=>{
-        if(e.target===rh)return;
-        e.preventDefault();
-        const t=e.touches[0];
-        startDrag(t.clientX,t.clientY,task,'move',bar,color);
-      },{passive:false});
-      rh.addEventListener('touchstart',e=>{
-        e.stopPropagation();e.preventDefault();
-        const t=e.touches[0];
-        startDrag(t.clientX,t.clientY,task,'resize',bar,color);
-      },{passive:false});
-      bar.addEventListener('click',e=>{e.stopPropagation();if(!didDrag)openEditModal(task);});
-      // Right‑click to delete
-      bar.addEventListener('contextmenu',e=>{
-        e.preventDefault();
-        e.stopPropagation();
-        const ok=confirm(`Delete task "${task.name}"?`);
-        if(!ok) return;
-        state.tasks=state.tasks.filter(t=>t.id!==task.id);
-        save();
-        renderGantt();
-      });
-
-      tl.appendChild(bar);
-    });
-  });
-
+  tl.appendChild(bar);
+});
   row.appendChild(tl);
   gi.appendChild(row);
 });
+}
 
 // ── Drag ──────────────────────────────────────────────────────────────────
 function startDrag(clientX,clientY,task,type,bar,color){
